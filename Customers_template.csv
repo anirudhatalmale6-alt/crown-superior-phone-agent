@@ -1,0 +1,8 @@
+Customer_ID,Customer_Name,Phone,DOB_MMDD,ZIP,Insurance_Company,Policy_Number,Payment_Amount,Due_Date,Cancellation_Date,Policy_Status,Promise_To_Pay_Date,Promise_Set_At,Payment_Link,Notes
+90001,Test Normal,4045551212,0517,30315,United Auto,TEST-NORMAL-1,187.42,2026-08-23,2026-08-28,Active,,,,normal path - promise to pay should be allowed up to 2026-08-27
+90002,Test No Cancel Date,4045551213,0620,30315,United Auto,TEST-NOCANCEL-1,204.18,2026-08-25,,Active,,,,no cancellation date - MUST transfer to a live agent
+90003,Test Deadline Passed,4045551214,0704,30315,Progressive,TEST-PASSED-1,150.00,2026-08-01,2026-08-05,Active,,,,cancellation already gone - MUST transfer to a live agent
+90004,Test One Decimal,4045551215,1231,30315,United Auto,TEST-DECIMAL-1,187.4,2026-09-01,2026-09-10,Active,,,,amount stored with one decimal - should be read as $187.40
+90005,Test Blank Amount,4045551216,0229,30315,Progressive,TEST-BLANK-1,,2026-09-05,2026-09-12,Active,,,,no amount on file - agent must not invent one
+90006,Test Twin A,4045551217,0303,30315,United Auto,TEST-TWIN-A,100.00,2026-09-02,2026-09-09,Active,,,,same phone and DOB as Twin B - MUST refuse to guess and transfer
+90007,Test Twin B,4045551217,0303,30315,United Auto,TEST-TWIN-B,250.00,2026-09-02,2026-09-09,Active,,,,same phone and DOB as Twin A - MUST refuse to guess and transfer
