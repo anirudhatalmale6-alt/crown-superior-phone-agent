@@ -6,3 +6,4 @@ Customer_ID,Customer_Name,Phone,DOB_MMDD,ZIP,Insurance_Company,Policy_Number,Pay
 90005,Test Blank Amount,4045551216,0229,30315,Progressive,TEST-BLANK-1,,2026-09-05,2026-09-12,Active,,,,no amount on file - agent must not invent one
 90006,Test Twin A,4045551217,0303,30315,United Auto,TEST-TWIN-A,100.00,2026-09-02,2026-09-09,Active,,,,same phone and DOB as Twin B - MUST refuse to guess and transfer
 90007,Test Twin B,4045551217,0303,30315,United Auto,TEST-TWIN-B,250.00,2026-09-02,2026-09-09,Active,,,,same phone and DOB as Twin A - MUST refuse to guess and transfer
+90008,Test Existing Promise,4045551218,0808,30315,Progressive,TEST-PROMISE-1,95.50,2026-09-03,2026-09-11,Active,2026-09-08,2026-08-18 09:14:02,,already has a live promise - MUST NOT create a second one and MUST transfer

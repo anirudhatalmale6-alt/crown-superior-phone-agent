@@ -196,6 +196,117 @@ eq(pub.payment_amount, '$187.40', 'amount formatted for speech');
 eq(pub.due_date_spoken, 'August 23, 2026', 'due date spoken in full');
 eq(pub.cancellation_date, '2026-08-28', 'cancellation date normalised');
 
+
+/* ------------------------------------------------------- what the caller said ------- */
+section('parseSpokenDate_  (a transcript is not a date field)');
+
+const T = '2026-08-18';                       // a Tuesday
+eq(L.weekdayIndexYmd_(T), 2, 'the reference day really is a Tuesday');
+
+const sd = (text) => L.parseSpokenDate_(text, T);
+
+// spelled out, which is how it actually arrives from speech-to-text
+eq(sd('August 26'), '2026-08-26', '"August 26"');
+eq(sd('august twenty sixth'), '2026-08-26', '"august twenty sixth"');
+eq(sd('the twenty-sixth'), '2026-08-26', '"the twenty-sixth"');
+eq(sd('the 26th'), '2026-08-26', '"the 26th"');
+eq(sd('26th of August'), '2026-08-26', '"26th of August"');
+eq(sd('sept 2'), '2026-09-02', 'abbreviated month');
+eq(sd('September second'), '2026-09-02', '"September second"');
+eq(sd('thirty first'), '2026-08-31', '"thirty first"');
+eq(sd('the first'), '2026-09-01', '"the first" rolls into next month');
+eq(sd('august 26 2026'), '2026-08-26', 'year spoken too');
+
+// already a date
+eq(sd('2026-08-26'), '2026-08-26', 'ISO passes through');
+eq(sd('08/26/2026'), '2026-08-26', 'US format passes through');
+
+// relative
+eq(sd('today'), '2026-08-18', '"today"');
+eq(sd('tomorrow'), '2026-08-19', '"tomorrow"');
+eq(sd('the day after tomorrow'), '2026-08-20', '"day after tomorrow"');
+eq(sd('in three days'), '2026-08-21', '"in three days" is not the 3rd');
+eq(sd('in 10 days'), '2026-08-28', '"in 10 days" is not the 10th');
+eq(sd('in a week'), '2026-08-25', '"in a week"');
+eq(sd('in two weeks'), '2026-09-01', '"in two weeks"');
+eq(sd('next week'), '2026-08-25', '"next week"');
+eq(sd('the end of the month'), '2026-08-31', '"end of the month"');
+
+// weekdays, from a Tuesday
+eq(sd('Friday'), '2026-08-21', '"Friday" is this week');
+eq(sd('next Friday'), '2026-08-21', '"next Friday"');
+eq(sd('Monday'), '2026-08-24', '"Monday" has already gone, so next week');
+eq(sd('Tuesday'), '2026-08-18', '"Tuesday" said on a Tuesday is today');
+eq(sd('next Tuesday'), '2026-08-25', '"next Tuesday" said on a Tuesday is a week out');
+eq(sd('Friday the 21st'), '2026-08-21', 'weekday and day together');
+
+// the year nobody says out loud
+eq(L.parseSpokenDate_('January third', '2026-12-28'), '2027-01-03', 'January said in December is next year');
+eq(L.parseSpokenDate_('the 3rd', '2026-12-28'), '2027-01-03', 'bare 3rd in late December rolls the year');
+eq(L.parseSpokenDate_('August 26', '2026-08-26'), '2026-08-26', 'today counts as the next occurrence');
+eq(L.parseSpokenDate_('February 29', '2026-08-18'), '', 'next 29 Feb is beyond a year out, so ask again');
+
+// things that must NOT become a date
+eq(sd('I may be able to pay on the 26th'), '2026-08-26', '"may" as a verb is not the month of May');
+eq(sd('May 26'), '2027-05-26', '"May 26" is the month - and this May has gone, so next May');
+eq(sd('the 20th or the 26th'), '', 'two dates is not a date');
+eq(sd('20 26'), '', 'two adjacent numbers are both seen');
+eq(sd('August 26 or September 2'), '', 'two months is not a date');
+eq(sd('August 26 or September 2') === '2002-08-26', false, 'and is not 26 August 2002 either');
+eq(sd('pay you on August 26'), '2026-08-26', 'a month inside a sentence still reads');
+eq(sd('August 26, 2027'), '2027-08-26', 'a spoken year is used, not inferred');
+eq(sd('the 15th of last month'), '2026-09-15', 'no support for backwards phrasing - it reads forwards');
+eq(sd('February 30'), '', 'impossible calendar date');
+eq(sd('the 32nd'), '', 'no such day of the month');
+eq(sd('as soon as I can'), '', 'no date in it');
+eq(sd('when I get paid'), '', 'still no date');
+eq(sd(''), '', 'empty transcript');
+eq(sd(null), '', 'nothing at all');
+eq(L.parseSpokenDate_('August 26', ''), '', 'no reference day means no answer');
+eq(sd('my number is 4045551212'), '', 'a phone number is not a day of the month');
+
+// the horizon guard
+eq(L.parseSpokenDate_('August 26', '2026-09-01'), '2027-08-26', 'a month just gone rolls to next year');
+eq(L.parseSpokenDate_('2029-01-01', T), '', 'years out is a mishearing, not a promise');
+
+/* ---------------------------------------------------- said, then decided ------------ */
+section('parseSpokenDate_ + decidePromiseToPay_  (end to end)');
+
+const CANCEL2 = '2026-08-28';                  // latest acceptable is the 27th
+const decideSpoken = (text) =>
+  L.decidePromiseToPay_(L.parseSpokenDate_(text, T), CANCEL2, T, 1);
+
+eq(decideSpoken('next Friday').allowed, true, '"next Friday" fits before cancellation');
+eq(decideSpoken('next Friday').promise_date, '2026-08-21', 'and lands on the coming Friday');
+eq(decideSpoken('the twenty seventh').allowed, true, 'the last acceptable day, spelled out');
+eq(decideSpoken('August 28th').allowed, false, 'the cancellation day itself, spelled out');
+eq(decideSpoken('August 28th').reason, 'AFTER_DEADLINE', 'and refused for the right reason');
+eq(decideSpoken('in two weeks').reason, 'AFTER_DEADLINE', '"in two weeks" is past the deadline');
+eq(decideSpoken('when I get paid').reason, 'NO_DATE_UNDERSTOOD', 'a vague answer asks again');
+eq(decideSpoken('the 20th or the 26th').action, 'ASK_AGAIN', 'two dates asks again rather than picking');
+eq(decideSpoken('yesterday').reason, 'NO_DATE_UNDERSTOOD', '"yesterday" is not understood, not accepted');
+
+/* ------------------------------------------------ a promise already on file --------- */
+section('decidePromiseToPay_  (one live promise at a time)');
+
+const already = L.decidePromiseToPay_('2026-08-26', CANCEL2, T, 1, '2026-08-24');
+eq(already.allowed, false, 'a second promise is not created automatically');
+eq(already.action, 'TRANSFER_TO_AGENT', 'it goes to a person');
+eq(already.reason, 'PROMISE_ALREADY_SET', 'reason names the situation');
+eq(already.existing_promise_date, '2026-08-24', 'the existing date comes back');
+eq(already.say.indexOf('August 24, 2026') > -1, true, 'the caller hears the date they already gave');
+
+const spent = L.decidePromiseToPay_('2026-08-26', CANCEL2, T, 1, '2026-08-10');
+eq(spent.allowed, true, 'a promise whose date has passed does not block a new one');
+
+const todayPromise = L.decidePromiseToPay_('2026-08-26', CANCEL2, T, 1, T);
+eq(todayPromise.reason, 'PROMISE_ALREADY_SET', 'a promise dated today is still live');
+
+eq(L.decidePromiseToPay_('2026-08-26', CANCEL2, T, 1, '').allowed, true, 'blank existing promise is no promise');
+eq(L.decidePromiseToPay_('2026-08-26', CANCEL2, T, 1).allowed, true, 'the argument stays optional');
+eq(L.decidePromiseToPay_('2026-08-26', '', T, 1, '2026-08-24').reason, 'PROMISE_ALREADY_SET',
+   'an existing promise is reported even with no cancellation date on file');
+
 /* ------------------------------------------------------------------------ summary ---- */
 console.log('\n' + '='.repeat(70));
 

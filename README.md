@@ -31,9 +31,9 @@ Customer calls
 |---|---|
 | `lib.gs` | All the decisions. No Google calls, so it can be tested outside Apps Script. |
 | `Code.gs` | The web app: authenticate, read the sheet, call the decision, write, log. |
-| `Customers_template.csv` | The sheet layout, with seven test customers that exercise every path. |
-| `tests/run_tests.js` | 94 checks against `lib.gs` itself. `node tests/run_tests.js` |
-| `demo.js` | Plays four calls end to end using the real code. `node demo.js` |
+| `Customers_template.csv` | The sheet layout, with eight test customers that exercise every path. |
+| `tests/run_tests.js` | 164 checks against `lib.gs` itself. `node tests/run_tests.js` |
+| `demo.js` | Plays seven calls end to end using the real code. `node demo.js` |
 
 There is no server to rent and no service account to manage: the code runs as a Google Apps
 Script attached to the spreadsheet, so it reads and writes as the sheet's owner.
@@ -68,9 +68,21 @@ row.
 | Date is in the past | Asks again |
 | **Cancellation date is blank** | **Transfers to a live agent** — your rule |
 | Cancellation date already passed | Transfers to a live agent |
+| **A promise is already on file and still ahead** | **Reads out the existing date and transfers** |
+
+A promise whose date has already gone by is spent, and does not block a new one.
 
 The one-day gap is `MIN_DAYS_BEFORE_CANCELLATION` at the top of `Code.gs`. Set it to 3 if
 you want the money in three days before cancellation instead; the tests cover that too.
+
+**What the caller says.** Nobody speaks a date the way a spreadsheet stores one. What comes
+out of speech-to-text is "august twenty sixth", "the 26th", "next friday", "in three days",
+"the end of the month" — and almost never a year, so the year is inferred forwards: said in
+December, "January third" is next year.
+
+Two rules keep that safe. An unclear reading becomes *ask the caller again*, never a guess —
+"the twentieth or the twenty sixth" is two dates, so it is no date. And whatever it settles
+on is read back before anything is written, so the caller is the one who confirms it.
 
 Amounts are never calculated. The sheet says `187.42`, the agent says `$187.42`. If the
 amount cell is blank the agent says it cannot retrieve it and transfers — it does not say
@@ -132,8 +144,10 @@ Returns either `{"verified": false, ...}` or:
   "phone": "{user_id}", "dob": "{dob_spoken}", "date": "{promise_spoken}" }
 ```
 
-Returns `allowed`, `action` (`RECORD` / `ASK_AGAIN` / `TRANSFER_TO_AGENT`), `reason`, and a
-ready-made `say` string. **Have the agent speak `say` verbatim** — it already contains the
+`date` is passed through exactly as the caller said it — do not try to tidy it up first.
+
+Returns `allowed`, `action` (`RECORD` / `ASK_AGAIN` / `TRANSFER_TO_AGENT`), `reason`,
+`heard_date` (what it made of the words) and a ready-made `say` string. **Have the agent speak `say` verbatim** — it already contains the
 right date, phrased for the situation.
 
 Note the promise call re-verifies from phone and birthday rather than trusting a customer id
@@ -144,7 +158,7 @@ Route on `action`: `RECORD` → confirm and continue. `ASK_AGAIN` → ask for an
 
 ### 4. Test before any real customer data goes in
 
-The template's seven rows are built for this. Call from `4045551212` and say May 17th, then
+The template's eight rows are built for this. Call from `4045551212` and say May 17th, then
 work down the list. Every row's Notes column says what should happen.
 
 Then change `Payment_Amount` on row 2 from `187.42` to `204.18`, call again, and confirm the

@@ -122,15 +122,25 @@ function actionPromise_(body) {
   }
 
   var row = result.matches[0].row;
+  var today = todayYmd_();
+
+  // body.date is whatever the caller said, as text. parseSpokenDate_ handles both a proper
+  // date and "next friday"; an unclear one comes back blank, which asks the caller again.
+  var heard = parseSpokenDate_(body.date, today);
+
   var decision = decidePromiseToPay_(
-    toYmd_(body.date),
+    heard,
     toYmd_(row.Cancellation_Date),
-    todayYmd_(),
-    MIN_DAYS_BEFORE_CANCELLATION
+    today,
+    MIN_DAYS_BEFORE_CANCELLATION,
+    toYmd_(row.Promise_To_Pay_Date)
   );
 
   decision.ok = true;
   decision.verified = true;
+  decision.heard_date = heard;
+  decision.heard_date_spoken = spokenDate_(heard);
+  decision.said = String(body.date == null ? '' : body.date);
   decision.customer_id = String(row.Customer_ID == null ? '' : row.Customer_ID);
 
   if (decision.allowed) {

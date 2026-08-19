@@ -1,5 +1,5 @@
 /**
- * Plays the four calls that matter, using the real decision code from lib.gs.
+ * Plays the calls that matter, using the real decision code from lib.gs.
  *
  * This is not a mock-up: every AI line below is produced by the same functions the live
  * service runs. Run with:  node demo.js
@@ -63,7 +63,7 @@ function call(title, phone, dob, spokenDob, proposedDate, spokenProposed) {
 
   line('AI', 'Thank you. Your next payment is ' + rec.payment_amount + ' and is due ' + rec.due_date_spoken + '.');
 
-  if (!proposedDate) {
+  if (!proposedDate && !spokenProposed) {
     return;
   }
 
@@ -79,8 +79,13 @@ function call(title, phone, dob, spokenDob, proposedDate, spokenProposed) {
     line('Caller', spokenProposed);
   }
 
+  // exactly what the live service does: the words the caller said, not a tidy date
+  const heard = L.parseSpokenDate_(spokenProposed || proposedDate, TODAY);
+
+  line('SYSTEM', '[heard "' + (spokenProposed || proposedDate) + '" as ' + (heard || 'nothing usable') + ']');
+
   const decision = L.decidePromiseToPay_(
-    L.toYmd_(proposedDate), rec.cancellation_date, TODAY, 1
+    heard, rec.cancellation_date, TODAY, 1, rec.promise_to_pay_date
   );
 
   line('SYSTEM', '[' + decision.reason + ' -> ' + decision.action + ']');
@@ -104,6 +109,15 @@ call('3. No cancellation date on the sheet — your rule says a person takes thi
 
 call('4. Two records share the phone and birthday — it must not guess',
   '4045551217', '0303', 'March third', null, null);
+
+call('5. Caller says a day of the week, not a date',
+  '4045551212', '0517', 'May seventeenth', null, 'I get paid Friday, so Friday');
+
+call('6. Caller names two dates — it asks again rather than picking one',
+  '4045551212', '0517', 'May seventeenth', null, 'the twentieth or maybe the twenty sixth');
+
+call('7. A promise is already on file — it does not quietly set a second one',
+  '4045551218', '0808', 'August eighth', null, 'the ninth of September');
 
 console.log('\n' + '─'.repeat(74));
 console.log('Wrong date of birth — same phone as call 1, one digit out on the birthday');
